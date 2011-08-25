@@ -64,6 +64,7 @@ static GHashTable *locations_model = NULL;
 static void write_sample_data(void);
 static void remove_sample_data(void);
 
+static void test_locations_model_add_location(void);
 static void print_locations_model(void);
 /*********************/
 
@@ -73,11 +74,16 @@ static void locations_model_save(void);
 static void locations_model_free(void);
 static GList *locations_model_get_locations_names(void);
 static GList *locations_model_lookup_accounts(gchar *location_name);
+static gboolean locations_model_location_exists(gchar *name);
+static void locations_model_add_location(gchar *name, GList *asis);
 static gboolean locations_model_delete_location(gchar *location_name);
-static void locations_model_free_value_cb(gpointer data);
 /*****************************/
 
+/* UI-specific functions */
 static void configure_locations(void);
+static GtkWidget *create_location_name_input_dialog(void);
+static void get_new_location_name(void);
+/****************/
 
 /* Testing functions */
 static void write_sample_data()
@@ -111,7 +117,6 @@ static void print_locations_model()
 		  *key_item = NULL,
 		  *accounts = NULL,
 		  *account_item = NULL;
-	PurpleAccount *account = NULL;
 	AccountStateInfo *asi = NULL;
 
 	keys = locations_model_get_locations_names();
@@ -130,20 +135,41 @@ static void print_locations_model()
 	}
 	g_list_free(keys);
 }
+
+static void
+test_locations_model_add_location()
+{
+	AccountStateInfo *asi = NULL;
+	GList *asis = NULL;
+	GList *all_accounts = NULL,
+		  *item = NULL;
+
+	all_accounts = purple_accounts_get_all();
+	for (item = g_list_first(all_accounts); item != NULL; item = g_list_next(item))
+	{
+		asi = g_new0(AccountStateInfo, 1);
+		asi->account = (PurpleAccount *)item->data;
+		asi->enabled = purple_account_get_enabled(asi->account, PIDGIN_UI);
+
+		asis = g_list_append(asis, asi);
+	}
+
+	locations_model_add_location("starbucks", asis);
+
+	g_list_free_full(asis, g_free);
+
+	print_locations_model();
+}
+
 /*** End of testing functions ***/
 
 /* Locations model functions */
-static void locations_model_free_value_cb(gpointer data)
-{
-	g_list_free((GList *)data);
-}
 
 static void locations_model_load()
 {
 	GList *map = NULL,
 		  *item = NULL;
 	gchar **fields = NULL;
-	PurpleAccount *account = NULL;
 	GList *account_list = NULL;
 	AccountStateInfo *asi = NULL;
 
@@ -159,6 +185,7 @@ static void locations_model_load()
 	for (item = g_list_first(map); item != NULL; item = g_list_next(item))
 	{
 		fields = g_strsplit((gchar *)item->data, ":", -1);
+
 		asi = g_new0(AccountStateInfo, 1);
 		asi->account = purple_accounts_find(*(fields + 1), *(fields + 2));
 		asi->enabled = g_strcmp0(*(fields + 3), "enabled") == 0 ? TRUE : FALSE;
@@ -169,10 +196,53 @@ static void locations_model_load()
 
 		g_strfreev(fields);
 	}
+
+	g_list_free_full(map, g_free);
 }
 
 static void locations_model_save()
 {
+	GList *keys = NULL,
+		  *key_item = NULL,
+		  *values = NULL,
+		  *value_item = NULL,
+		  *mapping = NULL,
+		  *map_item = NULL;
+	AccountStateInfo *asi = NULL;
+
+	keys = locations_model_get_locations_names();
+	key_item = g_list_first(keys);
+	for (; key_item != NULL; key_item = g_list_next(key_item))
+	{
+		values = locations_model_lookup_accounts((gchar *)key_item->data);
+		value_item = g_list_first(values);
+		for (; value_item != NULL; value_item = g_list_next(value_item))
+		{
+			asi = (AccountStateInfo *)value_item->data;
+			mapping = g_list_append(mapping,
+					g_strdup_printf("%s:%s:%s:%s",
+						(gchar *)key_item->data,
+						purple_account_get_username(asi->account),
+						purpel_account_get_protocol_id(asi->account),
+						asi->enabled ? "enabled" : "disabled"));
+		}
+	}
+
+	purple_prefs_set_string_list(PREF_LOCATION_ACCOUNT_MAP, mapping);
+
+	g_list_free_full(mapping, g_free);
+}
+
+static gboolean
+locations_model_location_exists(gchar *name)
+{
+	return NULL != g_hash_table_lookup(locations_model, name);
+}
+
+static void
+locations_model_add_location(gchar *name, GList *asis)
+{
+	g_hash_table_insert(g_strdup(name), asis);
 }
 
 static void
@@ -214,6 +284,18 @@ locations_model_delete_location(gchar *location_name)
 	return g_hash_table_remove(locations_model, location_name);
 }
 /*** End of locations model functions ***/
+
+/* UI-specific functions */
+static GtkWidget *
+create_location_name_input_dialog(void)
+{
+}
+
+static void
+get_new_location_name(void)
+{
+}
+/*** End of UI-specific functions ***/
 
 static void
 plugin_action_configure_cb (PurplePluginAction * action)
@@ -258,12 +340,10 @@ plugin_actions (PurplePlugin * plugin, gpointer context)
 static void
 account_status_toggled(GtkCellRenderer *renderer, gchar *path, gpointer data)
 {
-	GtkWidget *treeview = NULL;
 	GtkTreeIter iter;
 	GtkTreeModel *model = NULL;
 	gboolean value = FALSE;
 
-	treeview = (GtkWidget *)data;
 	model = gtk_tree_view_get_model(GTK_TREE_VIEW(data));
 	if (gtk_tree_model_get_iter_from_string(model, &iter, path))
 	{
@@ -394,8 +474,6 @@ plugin_load (PurplePlugin * plugin)
 
 	write_sample_data();
 	locations_model_load();
-
-	print_locations_model();
 
 	locations_plugin = plugin;
 
