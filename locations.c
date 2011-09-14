@@ -80,8 +80,24 @@ static gboolean locations_model_delete_location(gchar *location_name);
 /*****************************/
 
 /* UI-specific functions */
-static void configure_locations(void);
-static GtkWidget *create_location_name_input_dialog(void);
+typedef struct
+{
+	GtkWidget *configure_dialog;
+	GtkWidget *location_name_input_dialog;
+}
+LocationConfigurationDialog;
+
+static LocationConfigurationDialog *configure_dialog = NULL;
+static void location_configure_dialog_init(void);
+static void location_configure_dialog_destroy(void);
+static void location_configure_dialog_show(void);
+static const gchar *location_configure_dialog_get_new_location_name(void);
+static void add_clicked_handler(GtkButton *button, gpointer data);
+static void save_clicked_handler(GtkButton *button, gpointer data);
+static void remove_clicked_handler(GtkButton *button, gpointer data);
+static void close_clicked_handler(GtkButton *button, gpointer data);
+
+static void show_location_configure_dialog(void);
 static void get_new_location_name(void);
 /****************/
 
@@ -286,14 +302,12 @@ locations_model_delete_location(gchar *location_name)
 /*** End of locations model functions ***/
 
 /* UI-specific functions */
-static GtkWidget *
-create_location_name_input_dialog(void)
-{
-}
-
 static void
 get_new_location_name(void)
 {
+	GtkWidget *dialog = NULL;
+
+	dialog = pidgin_create_dialog("New Location Name", PIDGIN_HIG_BOX_SPACE, "name_entry", FALSE);
 }
 /*** End of UI-specific functions ***/
 
