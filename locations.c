@@ -780,4 +780,4 @@ init_plugin (PurplePlugin * plugin)
 {
 }
 
-PURPLE_INIT_PLUGIN (hello_world, init_plugin, info)
+PURPLE_INIT_PLUGIN (locations, init_plugin, info)
