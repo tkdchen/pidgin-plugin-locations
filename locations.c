@@ -65,14 +65,6 @@ static GHashTable *locations_model = NULL;
 static AccountStateInfo *account_state_info_new(PurpleAccount *account, gboolean enabled);
 static void account_state_info_free(AccountStateInfo *asi);
 
-/* Testing functions */
-static void write_sample_data(void);
-static void remove_sample_data(void);
-
-static void test_locations_model_add_location(void);
-static void print_locations_model(void);
-/*********************/
-
 /* Locations model functions */
 static void locations_model_load(void);
 static void locations_model_save(void);
@@ -137,84 +129,6 @@ account_state_info_free(AccountStateInfo *asi)
 	if (asi == NULL) return;
 	g_free(asi);
 }
-
-/* Testing functions */
-static void write_sample_data()
-{
-	GList *sample_data = NULL;
-
-	sample_data = g_list_append(sample_data, "home:qcxhome@gmail.com:prpl-jabber:enabled");
-	sample_data = g_list_append(sample_data, "work:qcxhome@hotmail.com:prpl-msn:enabled");
-	sample_data = g_list_append(sample_data, "home:qcxhome@yahoo.com:prpl-yahoo:enabled");
-	sample_data = g_list_append(sample_data, "work:qcxhome@gmail.com:prpl-jabber:disabled");
-	sample_data = g_list_append(sample_data, "home:qcxhome@hotmail.com:prpl-msn:enabled");
-	sample_data = g_list_append(sample_data, "home:qcxhome@yahoo.com:prpl-yahoo:disabled");
-	sample_data = g_list_append(sample_data, "public:qcxhome@gmail.com:prpl-jabber:enabled");
-	sample_data = g_list_append(sample_data, "home:qcxhome@hotmail.com:prpl-msn:enabled");
-	sample_data = g_list_append(sample_data, "home:qcxhome@yahoo.com:prpl-yahoo:enabled");
-
-	purple_prefs_add_string_list(PREF_LOCATION_ACCOUNT_MAP, sample_data);
-
-	g_list_free(sample_data);
-}
-
-static void remove_sample_data()
-{
-	purple_prefs_remove(PREF_LOCATION_ACCOUNT_MAP);
-	purple_prefs_remove(PREF_LAST_LOCATION);
-}
-
-static void print_locations_model()
-{
-	GList *keys = NULL,
-		  *key_item = NULL,
-		  *accounts = NULL,
-		  *account_item = NULL;
-	AccountStateInfo *asi = NULL;
-
-	keys = locations_model_get_locations_names();
-	for (key_item = g_list_first(keys); key_item != NULL; key_item = g_list_next(key_item))
-	{
-		printf("%s:\n", (gchar *)key_item->data);
-		accounts = locations_model_lookup_accounts((gchar *)key_item->data);
-		for (account_item = g_list_first(accounts); account_item != NULL; account_item = g_list_next(account_item))
-		{
-			asi = (AccountStateInfo *)account_item->data;
-			printf("\t%s, %s: %s\n",
-					purple_account_get_username(asi->account),
-					purple_account_get_protocol_id(asi->account),
-					asi->enabled ? "Enabled" : "Disabled" );
-		}
-	}
-	g_list_free(keys);
-}
-
-static void
-test_locations_model_add_location()
-{
-	AccountStateInfo *asi = NULL;
-	GList *asis = NULL;
-	GList *all_accounts = NULL,
-		  *item = NULL;
-
-	all_accounts = purple_accounts_get_all();
-	for (item = g_list_first(all_accounts); item != NULL; item = g_list_next(item))
-	{
-		asi = g_new0(AccountStateInfo, 1);
-		asi->account = (PurpleAccount *)item->data;
-		asi->enabled = purple_account_get_enabled(asi->account, PIDGIN_UI);
-
-		asis = g_list_append(asis, asi);
-	}
-
-	locations_model_add_location("starbucks", asis);
-
-	g_list_free_full(asis, g_free);
-
-	print_locations_model();
-}
-
-/*** End of testing functions ***/
 
 /* Locations model functions */
 
