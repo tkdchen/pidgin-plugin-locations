@@ -74,7 +74,6 @@ static GList *locations_model_lookup_accounts(gchar *location_name);
 static gboolean locations_model_location_exists(gchar *name);
 static void locations_model_add_location(gchar *name, GList *asis);
 static gboolean locations_model_delete_location(gchar *location_name);
-static gboolean locations_model_free_value(const gchar *key);
 /*****************************/
 
 /* UI-specific functions */
@@ -94,21 +93,17 @@ static LocationConfigurationDialog *configure_dialog = NULL;
 static void location_configure_dialog_create(void);
 static void location_configure_dialog_destroy(void);
 static void location_configure_dialog_show(void);
-static GtkWidget *location_configure_dialog_create_name_input_dialog(void);
 static gchar *location_configure_dialog_get_new_location_name(GtkWidget *parent);
 static void add_clicked_handler(GtkButton *button, gpointer data);
 static void save_clicked_handler(GtkButton *button, gpointer data);
 static void delete_clicked_handler(GtkButton *button, gpointer data);
 static void cboLocations_changed_handler(GtkComboBox *sender, gpointer data);
 
-static void show_location_configure_dialog(void);
-
 static GtkWidget *create_gtk_combo_box(GList *initial_strings);
 static void gtk_combo_box_locate_iter(GtkTreeModel *model, const gchar *string, GtkTreeIter *iter);
 static void gtk_combo_box_select_string(GtkWidget *combo_box, const gchar *s);
 static void gtk_combo_box_add_string(GtkWidget *combo_box, gchar *string);
 static void gtk_combo_box_remove_string(GtkWidget *combo_box, const gchar *string);
-static gchar *gtk_combo_box_get_active_string(GtkWidget *combo_box);
 /****************/
 
 static AccountStateInfo *
@@ -214,7 +209,7 @@ locations_model_add_location(gchar *name, GList *asis)
 static void
 locations_model_free_account_info_cb(gpointer data, gpointer user_data)
 {
-	g_free((AccountStateInfo *)data);
+	account_state_info_free((AccountStateInfo *)data);
 }
 
 static gboolean
@@ -252,15 +247,6 @@ locations_model_delete_location(gchar *location_name)
 /*** End of locations model functions ***/
 
 /* UI-specific functions */
-static void
-get_new_location_name(void)
-{
-	/*
-	GtkWidget *dialog = NULL;
-
-	dialog = pidgin_create_dialog("New Location Name", PIDGIN_HIG_BOX_SPACE, "name_entry", FALSE);
-	*/
-}
 
 static GtkWidget *
 create_gtk_combo_box(GList *initial_strings)
@@ -339,19 +325,6 @@ gtk_combo_box_remove_string(GtkWidget *combo_box, const gchar *string)
 	gtk_list_store_remove(GTK_LIST_STORE(combo_box), &iter);
 }
 
-static gchar *
-gtk_combo_box_get_active_string(GtkWidget *combo_box)
-{
-	GtkTreeModel *model = NULL;
-	GtkTreeIter iter;
-	gchar *s = NULL;
-
-	model = gtk_combo_box_get_model(GTK_COMBO_BOX(combo_box));
-	gtk_combo_box_get_active_iter(GTK_COMBO_BOX(combo_box), &iter);
-	gtk_tree_model_get(model, &iter, 0, &s, -1);
-
-	return s;
-}
 /*** End of UI-specific functions ***/
 
 static void
@@ -425,17 +398,6 @@ account_status_toggled(GtkCellRenderer *renderer, gchar *path, gpointer data)
 		gtk_tree_model_get(model, &iter, 0, &value, -1);
 		gtk_list_store_set(GTK_LIST_STORE(model), &iter, 0, !value, -1);
 	}
-}
-
-static void
-populate_location_names(LocationConfigurationDialog *dialog)
-{
-	GList *location_names = locations_model_get_locations_names();
-	GList *item = g_list_first(location_names);
-	for (; item != NULL; item = g_list_next(item))
-		gtk_combo_box_text_append_text(
-				GTK_COMBO_BOX_TEXT(dialog->cboLocations),
-				(gchar *)item->data);
 }
 
 static void
@@ -549,7 +511,6 @@ delete_clicked_handler(GtkButton *button, gpointer data)
 	GtkTreeModel *model = NULL;
 	GtkTreeIter iter;
 	gchar *name = NULL;
-	GList *value = NULL;
 
 	configure_dialog = (LocationConfigurationDialog *)data;
 	model = gtk_combo_box_get_model(GTK_COMBO_BOX(configure_dialog->cboLocations));
@@ -557,7 +518,7 @@ delete_clicked_handler(GtkButton *button, gpointer data)
 	gtk_tree_model_get(model, &iter, 0, &name, -1);
 
 	msg_dialog = gtk_message_dialog_new(
-			configure_dialog->dialog,
+			GTK_WINDOW(configure_dialog->dialog),
 			GTK_DIALOG_MODAL | GTK_DIALOG_DESTROY_WITH_PARENT,
 			GTK_MESSAGE_QUESTION,
 			GTK_BUTTONS_YES_NO,
@@ -627,11 +588,8 @@ location_configure_dialog_create()
 {
 	GtkWidget *content_area = NULL,
 			  *label = NULL,
-			  *hbox = NULL,
-			  *button = NULL;
+			  *hbox = NULL;
 	GtkWidget *scrolled_win = NULL;
-	GtkListStore *accounts_store = NULL;
-	GtkTreeIter iter;
 	GtkCellRenderer *renderer = NULL;
 	GtkTreeViewColumn *column = NULL;
 	int width, height;
