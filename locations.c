@@ -116,6 +116,7 @@ static void gtk_combo_box_locate_iter(GtkTreeModel *model, const gchar *string, 
 static void gtk_combo_box_select_string(GtkWidget *combo_box, const gchar *s);
 static void gtk_combo_box_add_string(GtkWidget *combo_box, gchar *string);
 static void gtk_combo_box_remove_string(GtkWidget *combo_box, const gchar *string);
+static gchar *gtk_combo_box_get_active_string(GtkWidget *combo_box);
 /****************/
 
 static AccountStateInfo *
@@ -293,7 +294,7 @@ locations_model_location_exists(gchar *name)
 static void
 locations_model_add_location(gchar *name, GList *asis)
 {
-  g_hash_table_insert(locations_model, g_strdup(name), asis);
+	g_hash_table_insert(locations_model, g_strdup(name), asis);
 }
 
 static void
@@ -423,6 +424,20 @@ gtk_combo_box_remove_string(GtkWidget *combo_box, const gchar *string)
 	gtk_combo_box_locate_iter(model, string, &iter);
 	gtk_list_store_remove(GTK_LIST_STORE(combo_box), &iter);
 }
+
+static gchar *
+gtk_combo_box_get_active_string(GtkWidget *combo_box)
+{
+	GtkTreeModel *model = NULL;
+	GtkTreeIter iter;
+	gchar *s = NULL;
+
+	model = gtk_combo_box_get_model(GTK_COMBO_BOX(combo_box));
+	gtk_combo_box_get_active_iter(GTK_COMBO_BOX(combo_box), &iter);
+	gtk_tree_model_get(model, &iter, 0, &s, -1);
+
+	return s;
+}
 /*** End of UI-specific functions ***/
 
 static void
@@ -529,11 +544,70 @@ add_clicked_handler(GtkButton *button, gpointer data)
 	gtk_combo_box_select_string(configure_dialog->cboLocations, name);
 }
 
+/*
+ * Update locations model using the model of accounts tree view.
+ * If there is any new purple account created after saving the
+ * location, add it to the locations model.
+ */
 static void
 save_clicked_handler(GtkButton *button, gpointer data)
 {
-	purple_notify_message (locations_plugin, PURPLE_NOTIFY_MSG_INFO,
-		"Locations", "Saving your changes.", NULL, NULL, NULL);
+	GtkTreeModel *model = NULL;
+	GtkTreeIter iter;
+	gchar *loc_name = NULL,
+		  *username = NULL,
+		  *protocol_id = NULL;
+	LocationConfigurationDialog *configure_dialog = NULL;
+	gboolean enabled = FALSE,
+			 update_item_found = FALSE;
+	GList *update_asis = NULL,
+		  *item = NULL;
+	AccountStateInfo *asi = NULL;
+
+	configure_dialog = (LocationConfigurationDialog *)data;
+	model = gtk_combo_box_get_model(GTK_COMBO_BOX(configure_dialog->cboLocations));
+	gtk_combo_box_get_active_iter(GTK_COMBO_BOX(configure_dialog->cboLocations), &iter);
+	gtk_tree_model_get(model, &iter, 0, &loc_name, -1);
+
+	update_asis = locations_model_lookup_accounts(loc_name);
+	model = gtk_tree_view_get_model(GTK_TREE_VIEW(configure_dialog->tvAccounts));
+
+	if (gtk_tree_model_get_iter_first(model, &iter))
+	{
+		do
+		{
+			gtk_tree_model_get(model, &iter, 0, &enabled, 1, &username, 2, &protocol_id, -1);
+
+			for (item = g_list_first(update_asis); item != NULL; item = g_list_next(item))
+			{
+				asi = (AccountStateInfo *)item->data;
+				update_item_found =
+					g_strcmp0(username, purple_account_get_username(asi->account)) == 0 &&
+					g_strcmp0(protocol_id, purple_account_get_protocol_id(asi->account)) == 0;
+				if (update_item_found)
+					break;
+			}
+
+			if (update_item_found)
+			{
+				asi->enabled = enabled;
+			}
+			else
+			{
+				asi = g_new0(AccountStateInfo, 1);
+				asi->enabled = enabled;
+				asi->account = purple_accounts_find(username, protocol_id);
+				/* Put the AccountStateInfo list back to the locations model with new Purple account. */
+				locations_model_add_location(loc_name, g_list_append(update_asis, asi));
+			}
+
+			g_free(username);
+			g_free(protocol_id);
+		}
+		while (gtk_tree_model_iter_next(model, &iter));
+	}
+
+	g_free(loc_name);
 }
 
 static void
@@ -547,27 +621,27 @@ delete_clicked_handler(GtkButton *button, gpointer data)
 	GList *value = NULL;
 
 	configure_dialog = (LocationConfigurationDialog *)data;
+	model = gtk_combo_box_get_model(GTK_COMBO_BOX(configure_dialog->cboLocations));
+	gtk_combo_box_get_active_iter(GTK_COMBO_BOX(configure_dialog->cboLocations), &iter);
+	gtk_tree_model_get(model, &iter, 0, &name, -1);
+
 	msg_dialog = gtk_message_dialog_new(
 			configure_dialog->dialog,
 			GTK_DIALOG_MODAL | GTK_DIALOG_DESTROY_WITH_PARENT,
 			GTK_MESSAGE_QUESTION,
 			GTK_BUTTONS_YES_NO,
-			"Are you sure to delete location %s", "location name");
+			"Are you sure to delete location %s", name);
 
 	if (gtk_dialog_run(GTK_DIALOG(msg_dialog)) == GTK_RESPONSE_YES)
 	{
-		model = gtk_combo_box_get_model(GTK_COMBO_BOX(configure_dialog->cboLocations));
-		gtk_combo_box_get_active_iter(GTK_COMBO_BOX(configure_dialog->cboLocations), &iter);
-		gtk_tree_model_get(model, &iter, 0, &name, -1);
 
 		locations_model_delete_location(name);
 		gtk_list_store_remove(GTK_LIST_STORE(model), &iter);
 		gtk_tree_view_set_model(GTK_TREE_VIEW(configure_dialog->tvAccounts), NULL);
-
-		g_free(name);
-		name = NULL;
 	}
 
+	g_free(name);
+	name = NULL;
 	gtk_widget_destroy(msg_dialog);
 }
 
@@ -576,11 +650,43 @@ cboLocations_changed_handler(GtkComboBox *sender, gpointer data)
 {
 	LocationConfigurationDialog *configure_dialog = NULL;
 	gboolean selected = FALSE;
+	GtkListStore *store = NULL;
+	GtkTreeIter iter;
+	GtkTreeModel *model = NULL;
+	gchar *location_name = NULL;
+	GList *ls = NULL,
+		  *item = NULL;
+	AccountStateInfo *asi = NULL;
 
-	selected = gtk_combo_box_get_active(sender) > -1;
 	configure_dialog = (LocationConfigurationDialog *)data;
+	selected = gtk_combo_box_get_active(sender) > -1;
+
 	gtk_widget_set_sensitive(configure_dialog->btnSave, selected);
 	gtk_widget_set_sensitive(configure_dialog->btnDelete, selected);
+
+	if (!selected) return;
+
+	model = gtk_combo_box_get_model(sender);
+	gtk_combo_box_get_active_iter(sender, &iter);
+	gtk_tree_model_get(model, &iter, 0, &location_name, -1);
+
+	store = gtk_list_store_new(2, G_TYPE_BOOLEAN, G_TYPE_STRING, G_TYPE_STRING);
+	ls = locations_model_lookup_accounts(location_name);
+	for (item = g_list_first(ls); item != NULL; item = g_list_next(item))
+	{
+		asi = (AccountStateInfo *)item->data;
+		gtk_list_store_append(store, &iter);
+		gtk_list_store_set(store, &iter,
+				0, asi->enabled,
+				1, purple_account_get_username(asi->account),
+				2, purple_account_get_protocol_id(asi->account),
+				-1);
+	}
+	gtk_tree_view_set_model(
+			GTK_TREE_VIEW(configure_dialog->tvAccounts),
+		   	GTK_TREE_MODEL(store));
+
+	g_free(location_name);
 }
 
 /******* end of signal handlers *******/
@@ -599,24 +705,9 @@ location_configure_dialog_create()
 	GtkTreeViewColumn *column = NULL;
 	int width, height;
 
-	GList *accounts = NULL,
-		  *item = NULL;
-
 	configure_dialog = g_new0(LocationConfigurationDialog, 1);
 
-	accounts_store = gtk_list_store_new(2, G_TYPE_BOOLEAN, G_TYPE_STRING);
-	accounts = purple_accounts_get_all();
-	item = g_list_first(accounts);
-	for (; item != NULL; item = g_list_next(item))
-	{
-		gtk_list_store_append(accounts_store, &iter);
-		gtk_list_store_set(accounts_store, &iter,
-				0, FALSE,
-				1, purple_account_get_username((PurpleAccount *)item->data),
-				-1);
-	}
-
-	configure_dialog->tvAccounts = gtk_tree_view_new_with_model(GTK_TREE_MODEL(accounts_store));
+	configure_dialog->tvAccounts = gtk_tree_view_new();
 
 	renderer = gtk_cell_renderer_toggle_new();
 	g_object_set(renderer, "activatable", TRUE, NULL);
@@ -741,7 +832,6 @@ plugin_load (PurplePlugin * plugin)
 {
 	purple_prefs_add_none(PREF_LOCATIONS);
 
-	write_sample_data();
 	locations_model_load();
 
 	locations_plugin = plugin;
@@ -757,7 +847,6 @@ plugin_unload (PurplePlugin * plugin)
 		locations_model_save();
 		locations_model_free();
 	}
-	remove_sample_data();
 	return TRUE;
 }
 
