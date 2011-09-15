@@ -451,6 +451,23 @@ plugin_action_configure_cb (PurplePluginAction * action)
 static void
 plugin_action_configure_accounts_by_location_cb(PurplePluginAction *action)
 {
+	gchar **fields = NULL;
+	GList *asis = NULL,
+		  *item = NULL;
+	AccountStateInfo *asi = NULL;
+
+	fields = g_strsplit(action->label, ": ", -1);
+	asis = locations_model_lookup_accounts(*(fields+1));
+
+	for (item = g_list_first(asis); item != NULL; item = g_list_next(item))
+	{
+		asi = (AccountStateInfo *)item->data;
+		purple_account_set_enabled(asi->account, PIDGIN_UI, asi->enabled);
+	}
+
+	purple_prefs_set_string(PREF_LAST_LOCATION, *(fields+1));
+
+	g_strfreev(fields);
 }
 
 static GList *
