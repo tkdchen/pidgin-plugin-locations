@@ -670,7 +670,7 @@ cboLocations_changed_handler(GtkComboBox *sender, gpointer data)
 	gtk_combo_box_get_active_iter(sender, &iter);
 	gtk_tree_model_get(model, &iter, 0, &location_name, -1);
 
-	store = gtk_list_store_new(2, G_TYPE_BOOLEAN, G_TYPE_STRING, G_TYPE_STRING);
+	store = gtk_list_store_new(3, G_TYPE_BOOLEAN, G_TYPE_STRING, G_TYPE_STRING);
 	ls = locations_model_lookup_accounts(location_name);
 	for (item = g_list_first(ls); item != NULL; item = g_list_next(item))
 	{
