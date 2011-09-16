@@ -607,7 +607,7 @@ location_configure_dialog_create()
 	renderer = gtk_cell_renderer_toggle_new();
 	g_object_set(renderer, "activatable", TRUE, NULL);
 	g_signal_connect(G_OBJECT(renderer), "toggled", G_CALLBACK(account_status_toggled), configure_dialog->tvAccounts);
-	column = gtk_tree_view_column_new_with_attributes("Status", renderer, "active", 0, NULL);
+	column = gtk_tree_view_column_new_with_attributes("Enabled", renderer, "active", 0, NULL);
 	gtk_tree_view_append_column(GTK_TREE_VIEW(configure_dialog->tvAccounts), column);
 
 	renderer = gtk_cell_renderer_text_new();
