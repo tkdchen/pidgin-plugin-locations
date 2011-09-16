@@ -156,10 +156,11 @@ static void locations_model_load()
 		account_list = g_list_append(account_list, asi);
 		g_hash_table_insert(locations_model, g_strdup(*fields), account_list);
 
+		g_free((gchar *)item->data);
 		g_strfreev(fields);
 	}
 
-	g_list_free_full(map, g_free);
+	g_list_free(map);
 }
 
 static void locations_model_save()
@@ -168,7 +169,8 @@ static void locations_model_save()
 		  *key_item = NULL,
 		  *values = NULL,
 		  *value_item = NULL,
-		  *mapping = NULL;
+		  *mapping = NULL,
+		  *item = NULL;
 	AccountStateInfo *asi = NULL;
 
 	keys = locations_model_get_locations_names();
@@ -191,7 +193,11 @@ static void locations_model_save()
 
 	purple_prefs_set_string_list(PREF_LOCATION_ACCOUNT_MAP, mapping);
 
-	g_list_free_full(mapping, g_free);
+	/* TODO: refactoring the GList free procedure */
+	for (item = g_list_first(mapping); item != NULL; item = g_list_next(item))
+		g_free((gchar *)item->data);
+
+	g_list_free(mapping);
 }
 
 static gboolean
