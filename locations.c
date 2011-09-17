@@ -756,7 +756,7 @@ static PurplePluginInfo info =
 	NULL,
 	PURPLE_PRIORITY_DEFAULT,
 
-	"locations",
+	"gtk-tkdchen-locations",
 	"Locations",
 	DISPLAY_VERSION,
 
