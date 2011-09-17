@@ -760,8 +760,10 @@ static PurplePluginInfo info =
 	"Locations",
 	DISPLAY_VERSION,
 
-	"Locations Plugin",
-	"Locations Plugin",
+	"Allows you to enable and disable accounts just by selecting a predefined location.",
+	"When you have several accounts, and only part of them can be used in some place. "
+	"It might be more convenience to predefine the accounts' usability by location, "
+	"and then just select the specific location from Locations' menu.",
 	"Chenxiong Qi <qcxhome@gmail.com>",
 	"",
 
