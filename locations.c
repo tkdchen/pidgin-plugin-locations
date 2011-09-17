@@ -52,6 +52,8 @@
 #define PREF_LOCATION_ACCOUNT_MAP PREF_LOCATIONS "/map"
 #define PREF_LAST_LOCATION PREF_LOCATIONS "/last"
 
+#define LOCATION_NAME_MAX_LENGTH 30
+
 PurplePlugin *locations_plugin = NULL;
 
 typedef struct
@@ -710,7 +712,7 @@ location_configure_dialog_get_new_location_name(GtkWidget *parent)
 	box = gtk_dialog_get_content_area(GTK_DIALOG(dialog));
 	label = gtk_label_new("Please enter a new location name here.");
 	gtk_box_pack_start(GTK_BOX(box), label, TRUE, TRUE, 0);
-	name_entry = gtk_entry_new();
+	name_entry = gtk_entry_new_with_max_length(LOCATION_NAME_MAX_LENGTH);
 	gtk_box_pack_start(GTK_BOX(box), name_entry, TRUE, TRUE, 0);
 	gtk_widget_show_all(dialog);
 
