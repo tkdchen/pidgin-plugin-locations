@@ -54,6 +54,8 @@
 
 #define LOCATION_NAME_MAX_LENGTH 30
 
+#define LOCATION_NAME_TIP "Location name only contains letters (either upper or lower case), digits, space, dash and underscore."
+
 PurplePlugin *locations_plugin = NULL;
 
 typedef struct
@@ -90,6 +92,15 @@ typedef struct
 	GtkWidget *btnClose;
 }
 LocationConfigurationDialog;
+
+typedef struct
+{
+	GtkWidget *dialog;
+	GtkWidget *prompt;		/* A label */
+	GtkWidget *name_entry;	/* A entry */
+	GtkWidget *tip;			/* A label */
+}
+NewLocationNameInputDialog;
 
 static LocationConfigurationDialog *configure_dialog = NULL;
 static void location_configure_dialog_create(void);
@@ -692,35 +703,86 @@ location_configure_dialog_show()
 	gtk_dialog_run(GTK_DIALOG(configure_dialog->dialog));
 }
 
+static void
+get_new_location_name_dialog_ok_clicked(GtkWidget *sender, gpointer data)
+{
+	NewLocationNameInputDialog *input_dialog = NULL;
+	gchar *name = NULL,
+		  *sp = NULL;
+
+	input_dialog = (NewLocationNameInputDialog *)data;
+	name = g_strdup(gtk_entry_get_text(GTK_ENTRY(input_dialog->name_entry)));
+	for (sp = name; *sp; ++sp)
+	{
+		if (!(*sp >= 'a' && *sp <= 'z' ||
+			*sp >= 'A' && *sp <= 'Z' ||
+			*sp >= '0' && *sp <= '9' ||
+			*sp == '-' || *sp == '_' || *sp == ' '))
+		{
+			g_free(name);
+
+			sp = g_strdup_printf(
+					"<span foreground=\"red\" font-weight=\"bold\">%s</span>",
+					LOCATION_NAME_TIP);
+			gtk_label_set_markup(GTK_LABEL(input_dialog->tip), sp);
+			g_free(sp);
+			return;
+		}
+	}
+
+	gtk_dialog_response(GTK_DIALOG(input_dialog->dialog), GTK_RESPONSE_OK);
+}
+
 static gchar *
 location_configure_dialog_get_new_location_name(GtkWidget *parent)
 {
+	NewLocationNameInputDialog *input_dialog = NULL;
 	GtkWidget *dialog = NULL,
 			  *label = NULL,
 			  *name_entry = NULL,
-			  *box = NULL;
-	gchar *name = NULL;
+			  *box = NULL,
+			  *button = NULL;
+	gchar *name = NULL,
+		  *sp = NULL;
 	GtkResponseType dialog_result = 0;
 
-	dialog = gtk_dialog_new_with_buttons(
+	input_dialog = g_new0(NewLocationNameInputDialog, 1);
+	input_dialog->dialog = gtk_dialog_new_with_buttons(
 			"Location Name",
 			GTK_WINDOW(parent),
 			GTK_DIALOG_MODAL,
-			GTK_STOCK_OK, GTK_RESPONSE_OK,
-			GTK_STOCK_CANCEL, GTK_RESPONSE_CANCEL,
 			NULL);
-	box = gtk_dialog_get_content_area(GTK_DIALOG(dialog));
-	label = gtk_label_new("Please enter a new location name here.");
-	gtk_box_pack_start(GTK_BOX(box), label, TRUE, TRUE, 0);
-	name_entry = gtk_entry_new_with_max_length(LOCATION_NAME_MAX_LENGTH);
-	gtk_box_pack_start(GTK_BOX(box), name_entry, TRUE, TRUE, 0);
-	gtk_widget_show_all(dialog);
 
-	dialog_result = gtk_dialog_run(GTK_DIALOG(dialog));
+	box = gtk_dialog_get_content_area(GTK_DIALOG(input_dialog->dialog));
+	input_dialog->prompt = gtk_label_new("Please enter a new location name here.");
+	gtk_box_pack_start(GTK_BOX(box), input_dialog->prompt, TRUE, TRUE, 0);
+
+	input_dialog->name_entry = gtk_entry_new_with_max_length(LOCATION_NAME_MAX_LENGTH);
+	gtk_box_pack_start(GTK_BOX(box), input_dialog->name_entry, TRUE, TRUE, 0);
+
+	input_dialog->tip = gtk_label_new(LOCATION_NAME_TIP);
+	gtk_label_set_line_wrap(GTK_LABEL(input_dialog->tip), TRUE);
+	gtk_box_pack_start(GTK_BOX(box), input_dialog->tip, TRUE, TRUE, 0);
+
+	box = gtk_dialog_get_action_area(GTK_DIALOG(input_dialog->dialog));
+	button = gtk_button_new_from_stock(GTK_STOCK_OK);
+	gtk_box_pack_start(GTK_BOX(box), button, TRUE, TRUE, 0);
+	/* Validating the new location name */
+	g_signal_connect(G_OBJECT(button), "clicked",
+			G_CALLBACK(get_new_location_name_dialog_ok_clicked), input_dialog);
+
+	gtk_dialog_add_button(GTK_DIALOG(input_dialog->dialog), GTK_STOCK_CANCEL, GTK_RESPONSE_CANCEL);
+
+	gtk_widget_show_all(input_dialog->dialog);
+
+	dialog_result = gtk_dialog_run(GTK_DIALOG(input_dialog->dialog));
 	if (dialog_result == GTK_RESPONSE_OK)
-		name = g_strdup(gtk_entry_get_text(GTK_ENTRY(name_entry)));
+	{
+		name = g_strdup(gtk_entry_get_text(GTK_ENTRY(input_dialog->name_entry)));
+	}
 
-	gtk_widget_destroy(dialog);
+	gtk_widget_destroy(input_dialog->dialog);
+	g_free(input_dialog);
 	return name;
 }
 
